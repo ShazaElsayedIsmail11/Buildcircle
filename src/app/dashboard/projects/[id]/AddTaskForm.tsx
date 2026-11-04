@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/app/Toast'
 import { logActivity } from '@/lib/logActivity'
+import { notify } from '@/lib/notify'
 type SquadMember = {
   builder_id: string
   users: { full_name: string } | null
@@ -38,6 +39,9 @@ export default function AddTaskForm({
       due_date: dueDate || null,
       assignee_id: assigneeId || null,
     })
+    if (assigneeId) {
+      await notify(assigneeId, `You were assigned a new task: "${title}"`, `/dashboard/projects/${projectId}`)
+    }
 const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       await logActivity(projectId, user.id, 'task_added', `added a new task: "${title}"`)

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import ApplyButton from './ApplyButton'
 import ApplicantsList from './ApplicantsList'
 import MissionActions from './MissionActions'
+import SaveButton from './SaveButton'
 export default async function MissionPage({
   params,
 }: {
@@ -44,7 +45,7 @@ export default async function MissionPage({
   let existingApplication = null
   let applications: any[] = []
   let project: { id: string } | null = null
-
+ let isSaved = false
   const { data: existingProject } = await supabase
     .from('projects')
     .select('id')
@@ -70,8 +71,27 @@ export default async function MissionPage({
       .maybeSingle()
 
     existingApplication = data
+   
+  if (user && !isOwner) {
+    const { data } = await supabase
+      .from('saved_missions')
+      .select('id')
+      .eq('builder_id', user.id)
+      .eq('mission_id', id)
+      .maybeSingle()
+    isSaved = !!data
   }
+  
+  }
+const todayInEgypt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Cairo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date())
 
+const isDeadlinePassed =
+  Boolean(mission.deadline && todayInEgypt > mission.deadline)
   return (
     <div className="max-w-2xl">
       <div className="mb-2 flex items-center gap-2">
@@ -135,10 +155,26 @@ export default async function MissionPage({
           />
         </>
       ) : (
-        <ApplyButton
-          missionId={mission.id}
-          existingApplication={existingApplication}
-        />
+    <div className="flex items-center gap-2">
+{existingApplication ? (
+  <ApplyButton
+    missionId={mission.id}
+    existingApplication={existingApplication}
+    hunterId={mission.startups?.hunter_id}
+  />
+) : isDeadlinePassed ? (
+  <p className="text-sm text-red-400">
+    Applications are closed for this mission.
+  </p>
+) : (
+  <ApplyButton
+    missionId={mission.id}
+    existingApplication={existingApplication}
+    hunterId={mission.startups?.hunter_id}
+  />
+)}
+    <SaveButton missionId={mission.id} initiallySaved={isSaved} />
+</div>
       )}
     </div>
   )

@@ -13,13 +13,14 @@ export default function SignUp() {
   const [role, setRole] = useState<'hunter' | 'builder'>('builder')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
+const [signupSuccess, setSignupSuccess] = useState(false)
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signUp({
+    
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -37,7 +38,28 @@ export default function SignUp() {
       return
     }
 
-    router.push('/dashboard')
+    if (data.session) {
+      router.push('/dashboard')
+    } else {
+      setSignupSuccess(true)
+    }
+  }
+  
+  
+
+  if (signupSuccess) {
+    return (
+      <main className="min-h-screen bg-bg-main text-text-primary flex items-center justify-center px-4">
+        <div className="bg-bg-surface border border-accent rounded-xl p-8 w-full max-w-md text-center">
+          <div className="text-3xl mb-3">📧</div>
+          <h1 className="text-xl font-semibold mb-2">Check your email</h1>
+          <p className="text-text-muted text-sm">
+            We sent a confirmation link to <span className="text-text-primary">{email}</span>.
+            Click it to activate your account, then log in.
+          </p>
+        </div>
+      </main>
+    )
   }
 
   return (

@@ -58,7 +58,7 @@ export function NewMissionForm({
 async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (!startupId) {
+    if (!selectedStartupId) {
       setError('Missing startup reference. Please go back and try again.')
       return
     }
@@ -83,7 +83,7 @@ async function handleSubmit(e: React.FormEvent) {
 
     const { error } = existingMission
       ? await supabase.from('missions').update(missionData).eq('id', existingMission.id)
-      : await supabase.from('missions').insert({ ...missionData, startup_id: startupId })
+      : await supabase.from('missions').insert({ ...missionData, startup_id: selectedStartupId })
 
     setLoading(false)
 

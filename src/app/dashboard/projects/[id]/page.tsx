@@ -1,18 +1,20 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { notFound } from 'next/navigation'
+
 import AddTaskForm from './AddTaskForm'
-import TaskCard from './TaskCard'
 import ProjectChat from './ProjectChat'
 import DeliverableForm from './DeliverableForm'
 import ReviewForm from './ReviewForm'
 import CompleteProjectButton from './CompleteProjectButton'
 import Milestones from './Milestones'
-import { EmptyState } from '@/app/EmptyState'
 import KanbanBoard from './KanbanBoard'
 import ActivityTimeline from './ActivityTimeline'
 import ProjectTabs from './ProjectTabs'
 import CompletionReport from './CompletionReport'
+import ProjectOverview from './ProjectOverview'
+import { EmptyState } from '@/app/EmptyState'
+import DeliverableReview from './DeliverableReview'
 export default async function ProjectRoom({
   params,
 }: {
@@ -29,31 +31,47 @@ export default async function ProjectRoom({
         getAll() {
           return cookieStore.getAll()
         },
-        setAll() {},
+
+        setAll() {
+          // Cookies cannot be updated directly inside this Server Component.
+        },
       },
     }
   )
 
-    
-const { data: project } = await supabase
+  const { data: project } = await supabase
     .from('projects')
-    .select('*, missions(title, description, startups(name))')
+    .select(`
+      *,
+      missions(
+        title,
+        description,
+        startups(
+          name,
+          hunter_id
+        )
+      )
+    `)
     .eq('id', id)
     .single()
 
-  if (!project) notFound()
-const { data: tasks } = await supabase
+  if (!project) {
+    notFound()
+  }
+
+  const { data: tasks } = await supabase
     .from('tasks')
     .select('*')
     .eq('project_id', id)
     .order('created_at', { ascending: true })
-const { data: milestones } = await supabase
+
+  const { data: milestones } = await supabase
     .from('milestones')
     .select('*')
     .eq('project_id', id)
     .order('due_date', { ascending: true })
 
-const { data: squadMembers } = await supabase
+  const { data: squadMembers } = await supabase
     .from('squad_members')
     .select('builder_id, users(full_name)')
     .eq('squad_id', project.squad_id)
@@ -67,155 +85,242 @@ const { data: squadMembers } = await supabase
   const {
     data: { user: currentUser },
   } = await supabase.auth.getUser()
-  const { data: currentProfile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', currentUser?.id)
-    .single()
+
+  let currentProfile: { role: string } | null = null
+
+  if (currentUser) {
+    const { data } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', currentUser.id)
+      .single()
+
+    currentProfile = data
+  }
 
   const isHunter = currentProfile?.role === 'hunter'
-const { data: deliverables } = await supabase
+
+  const { data: deliverables } = await supabase
     .from('deliverables')
     .select('*, users(full_name), tasks(title)')
     .eq('project_id', id)
     .order('uploaded_at', { ascending: false })
 
-    const { data: activities } = await supabase
+  const { data: activities } = await supabase
     .from('activity_log')
     .select('*, users(full_name)')
     .eq('project_id', id)
     .order('created_at', { ascending: false })
     .limit(20)
-return (
-  <div>
-    <h1 className="text-2xl font-semibold mb-1">
-      {project.missions?.title}
-    </h1>
 
-    <p className="text-text-muted mb-6">Project room</p>
-
-    {project.status === 'completed' ? (
-      <div>
-        <div className="bg-accent-bg border border-accent text-accent-text text-sm rounded-lg px-4 py-2 mb-6 inline-block">
-        ✓ This project is completed
-      </div>
-       <CompletionReport
-          tasks={tasks || []}
-          milestones={milestones || []}
-          deliverables={deliverables || []}
-          createdAt={project.created_at}
-          completedAt={project.completed_at}
-        />
-      </div>
-      
-    ) : (
-      isHunter && (
-        <CompleteProjectButton
-          projectId={project.id}
-          missionId={project.mission_id}
-        />
+  const hunterId = project.missions?.startups?.hunter_id
+const { data: hunterProfile } = hunterId
+  ? await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', hunterId)
+      .single()
+  : { data: null }
+  const allMemberIds = Array.from(
+    new Set(
+      [
+        ...(squadMembers?.map((member) => member.builder_id) || []),
+        hunterId,
+      ].filter(
+        (memberId): memberId is string =>
+          Boolean(memberId) && memberId !== currentUser?.id
       )
-    )}
+    )
+  )
 
-    <ProjectTabs
-      children={{
-        board: (
-          <>
-            {isHunter && project.status !== 'completed' && (
-              <AddTaskForm
-                projectId={project.id}
-                squadMembers={squadMembers || []}
-              />
-            )}
+  const isCompleted = project.status === 'completed'
 
-            <KanbanBoard
-              tasks={tasks || []}
-              isHunter={isHunter}
-              currentUserId={currentUser?.id || ''}
-            />
-          </>
-        ),
+  return (
+    <div>
+      <h1 className="mb-1 text-2xl font-semibold">
+        {project.missions?.title}
+      </h1>
 
-        milestones: (
-          <Milestones
-            projectId={project.id}
+      <p className="mb-6 text-text-muted">Project room</p>
+
+      {isCompleted ? (
+        <div>
+          <div className="mb-6 inline-block rounded-lg border border-accent bg-accent-bg px-4 py-2 text-sm text-accent-text">
+            ✓ This project is completed
+          </div>
+
+          <CompletionReport
+            tasks={tasks || []}
             milestones={milestones || []}
-            isHunter={isHunter}
+            deliverables={deliverables || []}
+            createdAt={project.created_at}
+            completedAt={project.completed_at}
           />
-        ),
-
-        files: (
-          <>
-            {!isHunter && project.status !== 'completed' && (
-              <div className="mb-4">
-                <DeliverableForm
-                  projectId={project.id}
-                  tasks={tasks || []}
-                />
-              </div>
-            )}
-
-            {(!deliverables || deliverables.length === 0) && (
-              <EmptyState
-                icon="📦"
-                title="No deliverables yet"
-                subtitle="Submitted work will appear here."
-              />
-            )}
-
-            <div className="space-y-3">
-              {deliverables?.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-bg-main border border-border rounded-xl p-4"
-                >
-                  <p className="text-xs text-text-muted mb-1">
-                    {item.users?.full_name}
-                    {item.tasks?.title && ` · ${item.tasks.title}`}
-                  </p>
-
-                  <a
-                    href={item.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-accent-text text-sm break-all"
-                  >
-                    {item.file_url} ↗
-                  </a>
-                </div>
-              ))}
-            </div>
-          </>
-        ),
-
-        activity: (
-          <ActivityTimeline activities={activities || []} />
-        ),
-
-        chat: (
-          <ProjectChat
+        </div>
+      ) : (
+        isHunter && (
+          <CompleteProjectButton
             projectId={project.id}
-            messages={messages || []}
-            currentUserId={currentUser?.id || ''}
+            missionId={project.mission_id}
+            memberIds={allMemberIds}
           />
-        ),
-      }}
-    />
+        )
+      )}
+<ProjectTabs>
+  {{
+    overview: (
+      <ProjectOverview
+        tasks={tasks || []}
+        milestones={milestones || []}
+        squadMembers={(squadMembers || []).map((member) => ({
+  ...member,
+  users: {
+    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
+  },
+}))}
+        hunterName={hunterProfile?.full_name || 'Unknown hunter'}
+      />
+    ),
 
-    {isHunter && squadMembers && squadMembers.length > 0 && (
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-3">
-          Review the work
-        </h2>
+    board: (
+      <>
+        {isHunter && project.status !== 'completed' && (
+          <AddTaskForm
+            projectId={project.id}
+           squadMembers={(squadMembers || []).map((member) => ({
+  ...member,
+  users: {
+    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
+  },
+}))}
+          />
+        )}
 
-        <ReviewForm
-          projectId={project.id}
-          squadMembers={squadMembers}
-          missionTitle={project.missions?.title || ''}
-          startupName={project.missions?.startups?.name || ''}
-        />
-      </div>
-    )}
-  </div>
-)
-} 
+        <KanbanBoard
+  tasks={tasks || []}
+squadMembers={(squadMembers || []).map((member) => ({
+  ...member,
+  users: {
+    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
+  },
+}))}
+  isHunter={isHunter}
+  currentUserId={currentUser?.id || ''}
+  isCompleted={isCompleted}
+/>
+      </>
+    ),
+
+    milestones: (
+      <Milestones
+        projectId={project.id}
+        milestones={milestones || []}
+        isHunter={isHunter}
+      />
+    ),
+
+    files: (
+      <>
+        {!isHunter && project.status !== 'completed' && (
+          <div className="mb-4">
+           <DeliverableForm
+  hunterId={hunterId}
+  projectId={project.id}
+  tasks={tasks || []}
+  deliverables={(deliverables || []).filter(
+    (item) => item.uploaded_by === currentUser?.id
+  )}
+/>
+          </div>
+        )}
+
+        {!deliverables?.length ? (
+          <EmptyState
+            icon="📦"
+            title="No deliverables yet"
+            subtitle="Submitted work will appear here."
+          />
+        ) : (
+          <div className="space-y-3">
+            {deliverables.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-xl border border-border bg-bg-main p-4"
+              >
+                <p className="mb-1 text-xs text-text-muted">
+                  {item.users?.full_name || 'Unknown user'}
+                  {item.tasks?.title && ` · ${item.tasks.title}`}
+                </p>
+
+                <a
+                  href={item.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all text-sm text-accent-text hover:underline"
+                >
+                  {item.file_url} ↗
+                </a>
+                <p className="mt-2 text-xs text-text-muted">
+  Status: {item.status.replaceAll('_', ' ')}
+</p>
+
+{item.review_comment && (
+  <p className="mt-2 text-sm text-text-muted">
+    Hunter feedback: {item.review_comment}
+  </p>
+)}
+
+{isHunter && !isCompleted && item.status === 'pending' && (
+<DeliverableReview
+  deliverableId={item.id}
+  projectId={project.id}
+  builderId={item.uploaded_by}
+/>
+)}
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    ),
+
+    activity: (
+      <ActivityTimeline activities={activities || []} />
+    ),
+
+    chat: (
+      <ProjectChat
+        otherMemberIds={allMemberIds}
+        projectId={project.id}
+        messages={messages || []}
+        currentUserId={currentUser?.id || ''}
+      />
+    ),
+  }}
+</ProjectTabs>
+
+      {isHunter &&
+        !isCompleted &&
+        squadMembers &&
+        squadMembers.length > 0 && (
+          <div className="mt-8">
+            <h2 className="mb-3 text-lg font-semibold">
+              Review the work
+            </h2>
+
+            <ReviewForm
+              projectId={project.id}
+              squadMembers={(squadMembers || []).map((member) => ({
+  ...member,
+  users: {
+    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
+  },
+}))}
+              missionTitle={project.missions?.title || ''}
+              startupName={project.missions?.startups?.name || ''}
+            />
+          </div>
+        )}
+    </div>
+  )
+}

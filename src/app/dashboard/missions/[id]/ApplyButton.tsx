@@ -2,13 +2,16 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-
+import { notify } from '@/lib/notify'
 export default function ApplyButton({
   missionId,
   existingApplication,
+  hunterId
 }: {
   missionId: string
+  
   existingApplication: { id: string; status: string } | null
+  hunterId:string
 }) {
   const [applied, setApplied] = useState(!!existingApplication)
   const [showForm, setShowForm] = useState(false)
@@ -44,6 +47,9 @@ export default function ApplyButton({
     }
 
     setApplied(true)
+    if (hunterId) {
+  await notify(hunterId, 'Someone applied to your mission', `/dashboard/missions/${missionId}`)
+}
   }
 
   if (applied) {

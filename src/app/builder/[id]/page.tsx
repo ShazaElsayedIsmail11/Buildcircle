@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { notFound } from 'next/navigation'
-
+import { calculateBadges } from '@/lib/badges'
+import MessageButton from './MessageButton'
 export default async function BuilderProfile({
   params,
 }: {
@@ -49,7 +50,11 @@ export default async function BuilderProfile({
           reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
         ).toFixed(1)
       : null
-
+const completedProjectsCount = proofOfWork?.length || 0
+  const badges = calculateBadges(
+    completedProjectsCount,
+    avgRating ? Number(avgRating) : null
+  )
   const builderProfile = Array.isArray(profile.builder_profiles)
     ? profile.builder_profiles[0]
     : profile.builder_profiles
@@ -57,10 +62,11 @@ export default async function BuilderProfile({
   return (
     <div className="min-h-screen bg-bg-main text-text-primary px-6 py-10">
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-2xl font-semibold">{profile.full_name}</h1>
             <p className="text-text-muted text-sm">{profile.bio}</p>
+            <MessageButton builderId={profile.id} />
           </div>
           {avgRating && (
             <div className="text-right">
@@ -71,7 +77,16 @@ export default async function BuilderProfile({
             </div>
           )}
         </div>
-
+<div className="flex gap-2 mb-6">
+          {badges.map((badge) => (
+            <span
+              key={badge.label}
+              className="bg-bg-surface border border-border text-text-primary text-xs font-medium px-3 py-1 rounded-full"
+            >
+              {badge.emoji} {badge.label}
+            </span>
+          ))}
+        </div>
         {builderProfile?.skills && builderProfile.skills.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
             {builderProfile.skills.map((skill: string) => (

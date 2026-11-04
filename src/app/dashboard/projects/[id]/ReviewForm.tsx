@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-
+import { notify } from '@/lib/notify'
 type SquadMember = {
   builder_id: string
   users: { full_name: string } | null
@@ -55,6 +55,11 @@ await supabase.from('reviews').insert({
       startup_name: startupName,
       review_summary: comment,
     })
+    await notify(
+      selectedBuilderId,
+      `You received a new review for "${missionTitle}"`,
+      `/builder/${selectedBuilderId}`
+    )
    setComment('')
     setRating(5)
     setLoading(false)

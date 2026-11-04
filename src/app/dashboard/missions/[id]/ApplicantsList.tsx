@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EmptyState } from '@/app/EmptyState'
+import { notify } from '@/lib/notify'
 type Application = {
   id: string
   cover_message: string | null
@@ -78,23 +79,32 @@ export default function ApplicantsList({
 
       router.refresh()
     } finally {
+       await notify(
+      application.builder_id,
+      'You were accepted to a squad!',
+      '/dashboard/applications'
+    )
       setLoadingId(null)
-    }
-  }
-
-  async function handleReject(applicationId: string) {
-    setLoadingId(applicationId)
-
-    try {
-      await supabase
-        .from('applications')
-        .update({ status: 'rejected' })
-        .eq('id', applicationId)
-
       router.refresh()
-    } finally {
-      setLoadingId(null)
     }
+  
+}
+
+ async function handleReject(application: Application) {
+    setLoadingId(application.id)
+    await supabase
+      .from('applications')
+      .update({ status: 'rejected' })
+      .eq('id', application.id)
+
+    await notify(
+      application.builder_id,
+      'Your application was not accepted this time',
+      '/dashboard/applications'
+    )
+
+    setLoadingId(null)
+    router.refresh()
   }
 
   if (applications.length === 0) {
@@ -161,7 +171,7 @@ className="bg-accent text-bg-main rounded-lg px-4 py-2 text-sm font-medium hover
 
               <button
                 type="button"
-                onClick={() => handleReject(app.id)}
+               onClick={() => handleReject(app)}
                 disabled={loadingId === app.id}
                 className="border border-border text-text-muted rounded-lg px-4 py-1.5 text-xs font-medium disabled:opacity-50"
               >

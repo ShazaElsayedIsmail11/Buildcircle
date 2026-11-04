@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 const tabs = [
+  { id: 'overview', label: 'Overview' },
   { id: 'board', label: 'Board' },
   { id: 'milestones', label: 'Milestones' },
   { id: 'files', label: 'Files' },
@@ -15,7 +16,7 @@ export default function ProjectTabs({
 }: {
   children: Record<string, React.ReactNode>
 }) {
-  const [activeTab, setActiveTab] = useState('board')
+  const [activeTab, setActiveTab] = useState('overview')
 
   return (
     <div>

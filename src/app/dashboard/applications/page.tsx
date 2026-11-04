@@ -24,9 +24,15 @@ export default async function MyApplications() {
 
   const { data: applications } = await supabase
     .from('applications')
-    .select('*, missions(title, startups(name))')
+    .select('*, missions(id, title, startups(name))')
     .eq('builder_id', user?.id)
     .order('applied_at', { ascending: false })
+
+  const missionIds = applications?.map((a) => a.missions?.id).filter(Boolean) || []
+
+  const { data: projects } = missionIds.length > 0
+    ? await supabase.from('projects').select('id, mission_id').in('mission_id', missionIds)
+    : { data: [] }
 
   return (
     <div>
@@ -43,10 +49,10 @@ export default async function MyApplications() {
       )}
       <div className="grid gap-4">
         {applications?.map((app: any) => (
-          <Link
+          <div
             key={app.id}
-            href={`/dashboard/missions/${app.mission_id}`}
-className="bg-bg-surface border border-border rounded-xl p-5 hover:border-accent hover:-translate-y-0.5 transition block"          >
+            className="bg-bg-surface border border-border rounded-xl p-5"
+          >
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-base font-medium">{app.missions?.title}</h2>
               <span
@@ -61,8 +67,21 @@ className="bg-bg-surface border border-border rounded-xl p-5 hover:border-accent
                 {app.status}
               </span>
             </div>
-            <p className="text-text-muted text-sm">{app.missions?.startups?.name}</p>
-          </Link>
+            <p className="text-text-muted text-sm mb-3">{app.missions?.startups?.name}</p>
+
+            {app.status === 'accepted' &&
+              (() => {
+                const project = projects?.find((p) => p.mission_id === app.missions?.id)
+                return project ? (
+                  <Link
+                    href={`/dashboard/projects/${project.id}`}
+                    className="text-accent-text text-xs font-medium"
+                  >
+                    Open project room →
+                  </Link>
+                ) : null
+              })()}
+          </div>
         ))}
       </div>
     </div>
