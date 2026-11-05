@@ -70,11 +70,22 @@ export default async function ProjectRoom({
     .select('*')
     .eq('project_id', id)
     .order('due_date', { ascending: true })
+const { data: squadMembers, error: membersError } = await supabase
+  .from('squad_members')
+  .select('builder_id, users(full_name)')
+  .eq('squad_id', project.squad_id)
 
-  const { data: squadMembers } = await supabase
-    .from('squad_members')
-    .select('builder_id, users(full_name)')
-    .eq('squad_id', project.squad_id)
+const formattedSquadMembers = (squadMembers || []).map((member) => {
+  const user = member.users as
+    | { full_name: string }
+    | { full_name: string }[]
+    | null
+
+  return {
+    builder_id: member.builder_id,
+    users: Array.isArray(user) ? user[0] ?? null : user,
+  }
+})
 
   const { data: messages } = await supabase
     .from('messages')
@@ -172,12 +183,7 @@ const { data: hunterProfile } = hunterId
       <ProjectOverview
         tasks={tasks || []}
         milestones={milestones || []}
-        squadMembers={(squadMembers || []).map((member) => ({
-  ...member,
-  users: {
-    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
-  },
-}))}
+        squadMembers={formattedSquadMembers}
         hunterName={hunterProfile?.full_name || 'Unknown hunter'}
       />
     ),
@@ -187,23 +193,13 @@ const { data: hunterProfile } = hunterId
         {isHunter && project.status !== 'completed' && (
           <AddTaskForm
             projectId={project.id}
-           squadMembers={(squadMembers || []).map((member) => ({
-  ...member,
-  users: {
-    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
-  },
-}))}
+           squadMembers={formattedSquadMembers}
           />
         )}
 
         <KanbanBoard
   tasks={tasks || []}
-squadMembers={(squadMembers || []).map((member) => ({
-  ...member,
-  users: {
-    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
-  },
-}))}
+squadMembers={formattedSquadMembers}
   isHunter={isHunter}
   currentUserId={currentUser?.id || ''}
   isCompleted={isCompleted}
@@ -310,12 +306,7 @@ squadMembers={(squadMembers || []).map((member) => ({
 
             <ReviewForm
               projectId={project.id}
-              squadMembers={(squadMembers || []).map((member) => ({
-  ...member,
-  users: {
-    full_name: member.users?.[0]?.full_name ?? 'Unknown builder',
-  },
-}))}
+              squadMembers={formattedSquadMembers}
               missionTitle={project.missions?.title || ''}
               startupName={project.missions?.startups?.name || ''}
             />
